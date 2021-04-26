@@ -1,0 +1,534 @@
+---
+title: "Untitled"
+author: "Julia Cabral"
+date: "19/04/2021"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars}
+# Análise dos bancos de dados da diáspora armênia no mundo e das práticas 
+# políticas pelo reconhecimento do genocídio armênio
+
+# O banco de dados foi montado por mim manualmente baseados nos dados 
+# disponíveis no site do Ministério das Relações Exteriores da Repúlica da 
+# Armênia
+# Link: www.mfa.am
+
+# As variáveis analisadas no banco de dados "banco de dados diáspora" são:
+# Nomes dos Países de destino da diáspora armênia e número de pesssoas 
+# pertencentes à diáspora armênia nestes países
+
+# As variáveis analisadas no banco de dados "Quem reconhece o genocídio armênio"
+# são: os nomes dos países e/ou das organizações internacionais, o tipo de lei
+# promulgada e o nível governamental da promulgação (Parlamento, Congresso, 
+# Senado, Câmara dos Deputados, etc), e o ano em que a mesma foi promulgada
+
+# Perguntas a serem respondidas: 
+# 1ª) Existe correlação entre a presença da diáspora em um dado país e a 
+# promulgação leis visando o reconhecimento do genocídio armênio pelo mesmo?
+# Ou seja, uma maior presença da diáspora armênia em um dado país impacta suas 
+# práticas políticas pelo reconhecimento do genocídio armênio?
+# 2ª) Se há, particularmente, no caso analisado do Brasil, um maior número de 
+# leis pelo reconhecimento do genocídio armênio após o início da chamada Maré Rosa.
+# 3ª) Se há uma propoção entre quanitdade populacional da diáspora no país e um
+# maior número de leis pelo reconhecimento do genocídio armênio.
+
+# Carregamento dos pacotes necessários
+
+library(readxl)
+library(scales)
+library(dplyr)
+library(ggplot2)
+library(ggmap)
+library(RColorBrewer)
+library(rworldmap)
+library(forcats)
+library(hrbrthemes)
+library(forecast)
+library(bestNormalize)
+library(car)
+library(outliers)
+
+# Análise temporal da criação de leis pelo reconhecimento do genocídio armênio
+# mundialmente ao longo dos anos (1915-2020)
+
+# Importação do banco de dados contendo as informações referentes aos países e
+# organizações internacionais que reconheceram o genocídio armênio por meio de 
+# promulgação de leis entre 1915 e 2020
+
+rec <- read_excel("C:/Users/jucab/Downloads/Quem reconhece o genocídio armênio.xlsx")
+View(rec)
+summary(rec)
+head(rec)
+
+TREC = ts(rec[,4], start=c(1915), end=c(2020), frequency=1)
+trec <- as.data.frame(table(TREC))
+colnames(trec) <- c("Anos", "Frequência")
+trec
+
+lev <- table(rec$`País ou organização mundial`, rec$Data)
+lev1 <- as.data.frame(lev)
+
+lev1 <- lev1 %>% 
+  rename("Países" = Var1)  %>% 
+  rename("Anos" = Var2) %>% 
+  rename("Frequência" = Freq)
+
+# Gráfico
+
+ggplot(lev1) +
+ aes(x = Anos, fill = Países, weight = Frequência) +
+ geom_bar() +
+ scale_fill_hue() +
+ theme_gray() +
+ theme(legend.position = "bottom", legend.text=element_text(size=6.3)) +
+  labs(x = "Anos", y = "Frequência", fill = "Países e Organizações") +
+  ggtitle("Promulgação de leis pelo reconhecimento do Genocídio Armênio mundialmente (1915-2020)") +
+  labs(subtitle = "Fonte: Ministério das Relações Exteriores da Repúlica da Armênia - www.mfa.am") +
+  theme(plot.subtitle=element_text(size=9))
+
+
+# Análise da quantidade leis promulgadas por país ou organização internacional
+
+# Análise exploratória estatística
+# Medidas de posição e dispersão
+ana= table(rec$`País ou organização mundial`)
+round(ana/sum(ana),4)*100
+mean(ana) # média
+rownames(ana)
+sd(ana) #desvio padrão amostral
+hist((ana), xlab="Práticas Políticas", ylab="Frequência",
+     main="Histograma das Práticas Políticas") #histograma
+median(ana) # mediana
+quantile(ana, probs = 0.5)
+quantile(ana) # quartis
+var(ana) #variância
+cv = (sd(ana)*100)/mean(ana) #coeficiente de variação 
+cv
+mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]}
+mode(ana) #moda
+range(ana) #amplitude
+
+# Gráfico 
+
+dados_politicas <- data.frame(
+  name=c("Germany","Argentina","Armenia","Austria","Belgium","Bolivia",
+         "Brazil","Canada","Chile","Cyprus","Andean Community","The European Council",
+         "Kurdistan","Slovakia","United States","European Alliance of YMCAs",
+         "France","Greece","Netherlands","Humans Rights Association of Turkey",
+         "Human Rights League","United Kingdom","Israel","Italy","Lebanon",
+         "Lithuania","Luxembourg","MERCOSUL","Organisation internationale de la Francophonie",
+         "Basque Country","Paraguai","European Parliament","Poland",
+         "Portugal","Syria","Czech Republic","Russia","Sweden","Switzerland",
+         "The Elie Wiesel Foundation for Humanity","UN Secretariat",
+         "UN Subcommission (OHCHR)",
+         "UN War Crimes Commission Report","Uruguay","Vatican","Venezuela"),  
+  value=c(2.11,7.37,1.05,1.05,2.11,1.05,12.63,3.16,2.11,1.05,
+          1.05,2.11,1.05,1.05,8.42,1.05,7.37,1.05,1.05,1.05,1.05,1.05,1.05,
+          2.11,2.11,1.05,1.05,1.05,1.05,1.05,1.05,5.26,1.05,1.05,1.05,
+          2.11,3.16,2.11,1.05,1.05,1.05,1.05,1.05,2.11,3.16,1.05))
+dados_politicas %>%
+  mutate(name = fct_reorder(name, value)) %>%
+  ggplot(aes(x=name, y=value)) +
+  geom_bar(stat="identity", fill="#f68060", alpha=.6, width=.4) +
+  coord_flip() +
+  labs(x= "Países e Organizações Internacionais", y="Frequência", 
+       title = "Promulgação de Leis Pelo Reconhecimento do Genocídio Armênio (1915-2020)") +
+  theme_gray() +
+labs(subtitle = "Fonte: Ministério das Relações Exteriores da Repúlica da Armênia - www.mfa.am")
+
+
+# Importação do banco de dados da população mundial da diáspora armênia
+dia <- read_excel("C:/Users/jucab/Downloads/banco de dados diaspora.xlsx")
+View(dia)
+
+# Análise exploratória estatística
+# Medidas de posição e dispersão
+head(dia)
+summary(dia)
+mean(dia$Quantidade) # média
+sd(dia$Quantidade) #desvio padrão amostral
+sqrt(sum((dia$Quantidade-mean(dia$Quantidade))^2)/81)#desvio padrão populacional
+median(dia$Quantidade) # mediana
+quantile(dia$Quantidade)# quartis
+vc = (sd(dia$Quantidade)*100)/
+  mean(dia$Quantidade) #coeficiente de variação 
+vc
+var(dia$Quantidade) #variância
+mode(dia$Quantidade) #moda
+range(dia$Quantidade) #amplitude
+hist((dia$Quantidade), xlab="População", ylab="Frequência",
+     main="Histograma População Diaspórica") #histograma
+
+# Mapa Global da Diáspora Armênia
+require(rworldmap)
+data(countryExData)
+data("countryExData",envir=environment(),package="rworldmap")
+sPDF <- joinCountryData2Map(countryExData, joinCode = "ISO3", nameJoinColumn = "ISO3V10")
+sPDF <-data.frame(sPDF)
+
+dia <- aggregate(dia$Quantidade, by=list(País=dia$`País de destino`), FUN=sum)
+colnames(dia)[colnames(dia)=="x"] <- "Diáspora Armênia no Mundo"
+worldMapDias <- joinCountryData2Map(dia, nameJoinColumn="País",
+                                    joinCode="NAME")
+colourPalette <- RColorBrewer::brewer.pal(11,'Heat')
+mapCountryData(worldMapDias, nameColumnToPlot = "Diáspora Armênia no Mundo",
+               catMethod = "fixedWidth", colourPalette = "rainbow", 
+               numCats=100)
+
+# Bubble Map
+mapDevice("windows")
+mapBubbles(worldMapDias, nameZSize="Diáspora Armênia no Mundo",
+           landCol='grey', borderCol="grey", legendTitle = "População", 
+           symbolSize=1.5,nameZColour="orange", legendHoriz = T, fill=T, 
+           lwd = 0.5,lwdSymbols = 1) 
+           mtext("Fonte: Ministério das Relações Exteriores da Repúlica da 
+                 Armênia - www.mfa.am",side=2,line=-2, cex=1)
+      
+# Gráfico da análise Populacional da Diáspora Armênia ao redor do Mundo
+           
+dia %>%
+  filter(`Diáspora Armênia no Mundo` >= 21574L & `Diáspora Armênia no Mundo` <= 
+                      +            2250000L) %>%
+  mutate(`País` = fct_reorder(`País`, desc(`Diáspora Armênia no Mundo`))) %>%
+  ggplot() +
+  aes(x = País, weight = `Diáspora Armênia no Mundo`) +
+  geom_bar(fill = "#fc9272") +
+  labs(x = "Países", y = "População", title = "Diáspora Armênia no Mundo") +
+  theme_gray() +
+  theme(axis.text.x = element_text(size=7)) +
+  labs(subtitle = "Fonte: Ministério das Relações Exteriores da Repúlica da Armênia - www.mfa.am")
+
+
+# Criação de um banco com os nomes apenas dos países e suas frequências de 
+# promulgação de leis pelo reconhecimento do Genocídio Armênio
+dados_projetos <- data.frame(
+  Paises=c("Germany","Argentina","Armenia","Austria","Belgium","Bolivia",
+            "Brazil","Canada","Chile","Cyprus","Kurdistan","Slovakia",
+            "United States","France","Greece","Netherlands","United Kingdom",
+            "Israel","Italy","Lebanon","Lithuania","Luxembourg",
+           "Basque Country","Paraguai","Poland",
+            "Portugal","Syria","Czech Republic","Russia","Sweden","Switzerland",
+            "Uruguay","Vatican","Venezuela"),  
+   Frequências=c(2.11,7.37,1.05,1.05,2.11,1.05,12.63,3.16,2.11,1.05,1.05,1.05,8.42,
+           7.37,1.05,1.05,1.05,1.05,2.11,2.11,1.05,1.05,1.05,1.05,1.05,1.05,1.05,
+           2.11,3.16,2.11,1.05,2.11,3.16,1.05))
+
+# Criação de um banco de dados com os nomes dos mesmos países e suas populações 
+# diaspóricas
+diaspora <- data.frame(
+  Paises=c("Germany","Argentina","Armenia","Austria","Belgium","Bolivia",
+           "Brazil","Canada","Chile","Cyprus","Kurdistan","Slovakia",
+           "United States","France","Greece","Netherlands","United Kingdom",
+           "Israel","Italy","Lebanon","Lithuania","Luxembourg",
+           "Basque Country","Paraguai","Poland",
+           "Portugal","Syria","Czech Republic","Russia","Sweden","Switzerland",
+           "Uruguay","Vatican","Venezuela"),
+  População=c(42000,130000,"N/A",3000,5000,"N/A",40000,80000,1000,2740,"N/A",
+              "N/A",1400000,450000,20000,3000,18000,3000,2500,234000,2500,
+              10,1000,"N/A",92000,"N/A",150000,10000,2250000,5000,5000,19000,
+              "N/A",2500))
+diaspora$População <- as.numeric(diaspora$População)
+
+# Junção dos dois bancos para comparação (Presença populacional x Promulgação de
+# Leis)
+dados_completos <- diaspora %>% left_join(dados_projetos)
+
+# Gráfico comparativo entre a população e a frequência da promulgação de leis 
+# entre 1915 e 2020
+dados_completos %>% 
+  filter(!is.na(População)) %>%
+  mutate(Paises = fct_reorder(Paises, População)) %>%
+  ggplot() +
+  aes(x = Paises, fill = Frequências, weight = População) +
+  geom_bar() +
+  geom_bar(position = "dodge") +
+  coord_flip() +
+  scale_fill_gradient() +
+  labs(x = "Países", y = "População", fill = "Frequência") +
+  theme_gray() +
+  theme(axis.text.x = element_text(size=8)) +
+  ggtitle("Promulgação de leis pelo reconhecimento do Genocídio Armênio (1915-2020)") +
+  labs(subtitle = "Fonte: Ministério das Relações Exteriores da Repúlica da Armênia - www.mfa.am") +
+  theme(plot.subtitle=element_text(size=9))
+
+
+# Gráfico de dispersão 
+
+dados_completos %>%
+ filter(!is.na(População)) %>%
+ ggplot() +
+ aes(x = População, y = Frequências) +
+ geom_point(size = 2L, colour = "#ed7953") +
+ geom_smooth(span = 1L) +
+ theme_gray()
+
+# Teste de hipótese entre duas variáveis Quantis(População e Frequência das leis)
+
+# Exclusão dos casos em que os dados populacionais não estavam disponíveis
+dados_analise <- dados_completos %>%
+  filter(!is.na(População))
+dados_analise
+
+dados_analise = subset(dados_analise, select = -c(Paises))
+dados_analise
+
+## Teste de Normalidade
+
+## Teste de Shapiro 
+
+# Frequências
+# Hipóteses:
+# H0: Os dados seguem uma distribuiçãoo normal
+# H1: Os dados não seguem uma distribuiçãoo normal
+# alpha = 0,05
+
+# se pvalor > alpha não rejeito h0
+# se pvalor <= alpha  rejeito h0
+options(scipen=999)
+shapiro.test(dados_analise$Frequências)
+# p-value = 0.0000003485
+# alpha 0,05
+# pvalor < alpha
+# Rejeito H0
+# Conclusão: não segue uma distribuição normal
+
+# População
+# Hipóteses:
+# H0: Os dados seguem uma distribuiçãoo normal
+# H1: Os dados não seguem uma distribuiçãoo normal
+# alpha = 0,05
+
+# se pvalor > alpha não rejeito h0
+# se pvalor <= alpha  rejeito h0
+shapiro.test(dados_analise$População)
+# p-value = 0.000000002727
+# alpha 0,05
+# pvalor < alpha
+# Rejeito H0
+# Conclusão: não segue uma distribuição normal
+
+## Teste de Igualdade de variâncias
+
+# Hipóteses:
+# H0: Os dados têm igualdade de variâncias
+# H1: Os dados não têm igualdade de variâncias
+# alpha = 0,05
+
+fligner.test(dados_analise$População~dados_analise$Frequências)
+# p-value= 0.005224
+# pvalor < alpha
+# Rejeito H0
+# Conclusão: não têm igualdade de variâncias
+
+## Transformação Box-cox para normalizar os dados - População
+
+lambda <- BoxCox.lambda(dados_analise$População, method = c("loglik"), lower = -5,
+                        upper = 5)
+lambda
+
+dados_analise$População_transformada <- BoxCox(dados_analise$População,lambda)
+shapiro.test(dados_analise$População_transformada)
+
+# p-value = 0.2486 > 0,05
+# tem distribuição normal 
+
+## Transformação para normalizar os dados - Frequência
+
+normal <- bestNormalize(dados_analise$Frequências)
+normal
+
+# Transformação Box-Cox
+lambda1 <- BoxCox.lambda(dados_analise$Frequências, method = c("loglik"), lower = -20,
+                       upper = 20)
+lambda1
+
+dados_analise$Frequências_transformada <- BoxCox(dados_analise$Frequências,lambda1)
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.00009638 < alpha
+
+boxcox_obj <- boxcox(dados_analise$Frequências)
+boxcox_obj
+dados_analise$Frequências_transformada <- predict(boxcox_obj)
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.00009894 < alpha
+
+# Transformação de Yeo-Johnson
+
+dados_analise$Frequências_transformada <- yjPower(dados_analise$Frequências,lambda1,jacobian.adjusted=F)
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.0001197 < alpha 
+
+yeojohnson_obj <- yeojohnson(dados_analise$Frequências)
+dados_analise$Frequências_transformada <- predict(yeojohnson_obj)
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.0001102 < alpha
+
+# Passar o log
+shapiro.test(log(dados_analise$Frequências))
+# p-value = 0.00005127 < alpha
+
+# Raíz quadrada
+shapiro.test(sqrt(dados_analise$Frequências))
+# p-value = 0.000004844 < alpha
+
+# Normalização dos quartis
+x2 <- orderNorm(dados_analise$Frequências)
+dados_analise$Frequências_transformada <- predict(x2)
+
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.0002365 < alpha
+
+# Lambert's W x F transfromation
+lambert_obj <- lambert(dados_analise$Frequências)
+lambert_obj
+dados_analise$Frequências_transformada <- predict(lambert_obj)
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.0001113 < alpha
+
+# Binarização
+binarize_obj <- binarize(dados_analise$Frequências)
+dados_analise$Frequências_transformada <- predict(binarize_obj)
+shapiro.test(dados_analise$Frequências_transformada)
+
+# Transformação arconseno
+arcsinh_obj <- arcsinh_x(dados_analise$Frequências)
+dados_analise$Frequências_transformada <- predict(arcsinh_obj)
+shapiro.test(dados_analise$Frequências_transformada)
+# p-value = 0.00002871 < alpha 
+
+hist(dados_analise$Frequências_transformada)
+
+# Conclusão: a variável "Frequências" não segue uma distribuição normal
+# E os métodos de transformação não normalizaram
+
+# Verificação de outliers dentro da variável "Frequências"
+
+# Teste para identificação do valor outlier
+chisq.out.test(dados_analise$Frequências)
+# Resultado:
+# alternative hypothesis: highest value 12.63 is an outlier
+# O outlier "Brasil" (12.63) está muito distante da média do grupo (2.69)
+
+# Por conseguinte, será feito um tese não-paramétrico, visto que o caso brasileiro
+# é o objeto deste estudo justamente por ser um outlier
+
+# Gráfico de dispersão
+
+dispersão <- dados_completos %>% 
+  filter(!is.na(População)) %>% 
+  ggplot() +
+  aes(x = População, y = Frequências, fill = Paises) +
+  geom_point(size = 2L,color = "blue") +
+  geom_text(aes(label=ifelse(Frequências>7L,
+                             as.character(Paises),'')),hjust=0, vjust=0) +
+  scale_fill_hue() +
+  theme_gray()
+
+dispersão
+
+# Teste de Spearman
+# O intuito do teste é verificar se a variável população diaspórica (quanti)
+# está associada à frequência da promulgação de leis de reconhecimento 
+# (quanti)
+
+# Hipóteses
+# H0: Não há associação [monotônica] entre as duas variáveis
+# H1: Há associação [monotônica] entre as duas variáveis
+# alpha = 0,05
+# se pvalor <= alpha, rejeito H0
+# se pvalor > alpha, não rejeito H0
+
+# Teste de correlação:
+cor.test(dados_analise$População,dados_analise$Frequências, method="spearman")
+
+# Resultado:
+# p-value = 0.002186
+# alternative hypothesis: true rho is not equal to 0
+# sample estimates:  rho = 0.563944
+# Conclusão:
+# pvalor é menor que alpha, logo, não rejeito H0
+# Conclui-se que há associação entre as duas variáveis
+
+# Análise temporal dos casos brasileiro e argentino
+
+bra <- lev1 %>% 
+  filter(Países == "Brasil") %>% 
+  glimpse()
+
+bra %>% 
+  ggplot() +
+  aes(x = Anos, weight = Frequência) +
+  geom_bar(fill = "#0c4c8a") +
+  labs(x = "Anos", y = "Frequência") +
+  theme_gray() +
+  ggtitle("Promulgação de leis pelo reconhecimento do Genocídio Armênio no Brasil (1915-2020)") +
+  labs(subtitle = "Fonte: Ministério das Relações Exteriores da Repúlica da Armênia - www.mfa.am") +
+  theme(plot.subtitle=element_text(size=9))
+
+arg <- lev1 %>% 
+  filter(Países == "Argentina") %>% 
+  glimpse()
+
+arg %>% 
+ggplot() +
+  aes(x = Anos, weight = Frequência) +
+  geom_bar(fill = "#0c4c8a") +
+  labs(x = "Anos", y = "Frequência") +
+  theme_gray() +
+  ggtitle("Práticas políticas de reconhecimento na Argentina (1915-2020)") +
+  labs(subtitle = "Fonte: Ministério das Relações Exteriores da Repúlica da Armênia - www.mfa.am") +
+  theme(plot.subtitle=element_text(size=9))
+
+# Comparação de médias de leis antes da maré rosa e durante em cada país
+
+# Caso brasileiro de 2002 a 2015
+casoum <- bra[20:30,]
+casoum
+
+# Caso brasileiro de 1915 a 2001
+casoum1 <- bra[9:19,]
+casoum1
+
+# Caso argentino de 2002 a 2015
+casodois <- arg[20:30,]
+casodois
+
+# Caso argentino de 1915 a 2001
+casodois2 <- arg[9:19,]
+casodois2
+
+# Comparação das médias por Teste T
+# Caso brasileiro
+#H0: MU_S = MU_N 
+#H1: MU_S != MU_N
+#alpha = 0,05   
+
+t.test(casoum$Frequência~casoum1$Frequência,
+       alternative="two.sided",paired=F,var.equal=T,conf.level=0.95)
+
+# p-value = 1
+# pvalor > alpha
+# Conclusão: rejeito H0 e concluo que houve uma diferença entre as médias dos dois períodos
+
+# Caso argentino
+#H0: MU_S = MU_N 
+#H1: MU_S != MU_N
+#alpha = 0,05
+t.test(casodois$Frequência~casodois2$Frequência,
+       alternative="two.sided",paired=F,var.equal=T,conf.level=0.95)
+# p-value = 0.5171
+# pvalor > alpha
+# Conclusão: rejeito H0 e concluo que houve uma diferença entre as médias dos dois períodos
+
+```
+
